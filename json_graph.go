@@ -36,10 +36,10 @@ type jsonGraphModel struct {
 	ExecutablePath string  `json:"execPath,omitempty"`
 	Priority       *uint32 `json:"priority,omitempty"`
 
-	TimeStarted time.Time `json:"timeStarted,omitempty"`
+	TimeStarted *time.Time `json:"timeStarted,omitempty"`
 
-	TimeEnds time.Time `json:"timeEnds,omitempty"`
-	ExitCode uint32    `json:"exitCode,omitempty"`
+	TimeEnds *time.Time `json:"timeEnds,omitempty"`
+	ExitCode uint32     `json:"exitCode,omitempty"`
 
 	Children []*JsonGraphChild `json:"children,omitempty"`
 }
@@ -96,68 +96,122 @@ func (jgc *JsonGraphContainer) truncateAndUpdateLog() error {
 	return nil
 }
 
-// Find PID on children Level recursive
-func (jgchild *JsonGraphChild) findAndUpdateExitCodeByPID(pid, exitCode uint32) (bool, int) {
-	found := false
-	i := -1
+// find a node by ID and will return the required struct
+// checl _findByPID docs for more
+func (jgc *JsonGraphContainer) FindByPID(pid uint32) (found bool, kind int, jgConiner *JsonGraphContainer, jgChild *JsonGraphChild) {
+	if f, k, c := jgc._findByPID(pid); f {
+		switch k {
+		case 1: // container
+			return f, k, c.(*JsonGraphContainer), nil
+		case 2: // child
+			return f, k, nil, c.(*JsonGraphChild)
+		}
+	}
+	return false, -1, nil, nil
+}
 
-	// find in children and children of children, ... level
-	for i, chld := range jgchild.Children {
-		if pid == chld.PID {
-			found = true
+// this method will loop through all json struct and
+// return JsonGraphContainer OR JsonGraphChild
+// kind = 1 if JsonGraphContainer
+// kind = 2 if JsonGraphChild
+func (jgc *JsonGraphContainer) _findByPID(pid uint32) (found bool, kind int, c interface{}) {
 
-			chld.TimeEnds = time.Now()
-			chld.ExitCode = exitCode
+	if jgc.PID == pid {
+		return true, 1, jgc
+	}
 
-			return found, i
-		} else {
-			// recursive call
-			f, _i := chld.findAndUpdateExitCodeByPID(pid, exitCode)
-			if f {
-				return f, _i
-			}
+	for _, ch := range jgc.Children {
+		// log.Println(ch.PID, ch.Name)
+		if f, k, c := jgc._childrenFindByPID(pid, ch); f {
+			return f, k, c
 		}
 	}
 
-	return found, i
+	return false, -1, nil
 }
 
-// Find PID on children Level recursive
-func (jgchild *JsonGraphChild) findAndAppendByPID(pid uint32, child JsonGraphChild) (bool, []*JsonGraphChild, int) {
-	found := false
-	i := -1
-
-	// find in children and children of children, ... level
-	for i, chld := range jgchild.Children {
-		if pid == chld.PID {
-			found = true
-			chld.Children = append(chld.Children, &child)
-			return found, chld.Children, i
-		} else {
-			// recursive call
-			f, chl, _i := chld.findAndAppendByPID(pid, child)
-			if f {
-				return f, chl, _i
-			}
-		}
+// this method will loop through all json struct children and
+// return always a JsonGraphChild
+// kind = 1 if JsonGraphContainer -> never happend in this func, but happends FindByPID
+// kind = 2 if JsonGraphChild -> always this type will return
+func (jgc *JsonGraphContainer) _childrenFindByPID(pid uint32, chld *JsonGraphChild) (found bool, kind int, c interface{}) {
+	if chld.PID == pid {
+		return true, 2, chld
 	}
-
-	return found, nil, i
-}
-
-// Find PID on Container Level
-func (jgc *JsonGraphContainer) findByPID(pid uint32) (found bool, i int) {
-	found = false
-	i = -1
-
-	// find in first level
-	for i, chld := range jgc.Children {
-		if pid == chld.PID {
-			found = true
-			return found, i
-		}
+	if len(chld.Children) == 0 {
+		return false, -1, nil
 	}
-
-	return found, i
-
+	for _, ch := range chld.Children {
+		if f, k, c := jgc._childrenFindByPID(pid, ch); f {
+			return f, k, c
+		}
+		// return jgc._childrenFindByPID(pid, ch)
+	}
+	return false, -1, nil
 }
+
+// // Find PID on children Level recursive
+// func (jgchild *JsonGraphChild) findAndUpdateExitCodeByPID(pid, exitCode uint32) (bool, int) {
+// 	found := false
+// 	i := -1
+
+// 	// find in children and children of children, ... level
+// 	for i, chld := range jgchild.Children {
+// 		if pid == chld.PID {
+// 			found = true
+
+// 			chld.TimeEnds = time.Now()
+// 			chld.ExitCode = exitCode
+
+// 			return found, i
+// 		} else {
+// 			// recursive call
+// 			f, _i := chld.findAndUpdateExitCodeByPID(pid, exitCode)
+// 			if f {
+// 				return f, _i
+// 			}
+// 		}
+// 	}
+
+// 	return found, i
+// }
+
+// // Find PID on children Level recursive
+// func (jgchild *JsonGraphChild) findAndAppendByPID(pid uint32, child JsonGraphChild) (bool, []*JsonGraphChild, int) {
+// 	found := false
+// 	i := -1
+
+// 	// find in children and children of children, ... level
+// 	for i, chld := range jgchild.Children {
+// 		if pid == chld.PID {
+// 			found = true
+// 			chld.Children = append(chld.Children, &child)
+// 			return found, chld.Children, i
+// 		} else {
+// 			// recursive call
+// 			f, chl, _i := chld.findAndAppendByPID(pid, child)
+// 			if f {
+// 				return f, chl, _i
+// 			}
+// 		}
+// 	}
+
+// 	return found, nil, i
+// }
+
+// // Find PID on Container Level
+// func (jgc *JsonGraphContainer) findByPID(pid uint32) (found bool, i int) {
+// 	found = false
+// 	i = -1
+
+// 	// find in first level
+// 	for i, chld := range jgc.Children {
+// 		if pid == chld.PID {
+// 			found = true
+// 			return found, i
+// 		}
+// 	}
+
+// 	return found, i
+
+// }

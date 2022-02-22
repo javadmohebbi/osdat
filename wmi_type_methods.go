@@ -54,7 +54,7 @@ func (e *WmiMonitorProcessEvents) SetMonitoredChildren(mc *[]Monitoredchild) {
 // append process to the list of monitored child
 // if does not exists (Actually new items are never exists in the array :-D)
 func (e *WmiMonitorProcessEvents) appendMonitoredChiled(ev win32ProcessEvent) (check bool) {
-
+	t := time.Now()
 	check = false
 
 	if ev.Instance.ParentProcessId == e.grandParentID {
@@ -76,7 +76,7 @@ func (e *WmiMonitorProcessEvents) appendMonitoredChiled(ev win32ProcessEvent) (c
 		jgchild.CommandLine = ev.Instance.CommandLine
 		jgchild.Priority = ev.Instance.Priority
 		jgchild.PID = ev.Instance.ProcessId
-		jgchild.TimeStarted = time.Now()
+		jgchild.TimeStarted = &t
 		jgchild.Children = []*JsonGraphChild{}
 		e.Graph.AppendChild(jgchild)
 
@@ -103,7 +103,7 @@ func (e *WmiMonitorProcessEvents) appendMonitoredChiled(ev win32ProcessEvent) (c
 				jgchild.CommandLine = ev.Instance.CommandLine
 				jgchild.Priority = ev.Instance.Priority
 				jgchild.PID = ev.Instance.ProcessId
-				jgchild.TimeStarted = time.Now()
+				jgchild.TimeStarted = &t
 				jgchild.Children = []*JsonGraphChild{}
 				e.Graph.AppendNextChild(jgchild,
 					ev.Instance.ParentProcessId,

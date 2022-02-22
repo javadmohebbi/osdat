@@ -146,7 +146,7 @@ func init() {
 		os.Exit(4)
 	}
 
-	test_pid := 2568
+	test_pid := 3680
 
 	jgc := osdat.NewJsonGraphContainer("SELF", uint32(test_pid), rptDirPath)
 
