@@ -20,7 +20,7 @@ import (
 var f2aPath string
 
 // report file path
-var rptPath string
+var rptDirPath string
 
 // array of args
 var args []string
@@ -88,7 +88,7 @@ func init() {
 	commandlineOptions := flag.String("c", "", "Commandline arguments separeted by comma (,). eg: /F, /D")
 
 	// flag for storing report file
-	rptFile := flag.String("l", "osdat.json", "Report file for the analysis of the provided executable")
+	rptFolder := flag.String("l", "osdat.analysis", "Report directory for the analysis of the provided executable")
 
 	// flag for printing usage
 	h := flag.Bool("h", false, "Print help")
@@ -109,11 +109,25 @@ func init() {
 	f2aPath = *fileToAnalyze
 
 	// check -l report file is provided
-	if *rptFile == "" {
+	if *rptFolder == "" {
 		fmt.Println("-l must be provided!")
 		usage(1)
+	} else {
+		if abs := filepath.IsAbs(*rptFolder); abs {
+			rptDirPath = *rptFolder
+		} else {
+			rptDirPath = fmt.Sprintf("%s\\%s", workingDir, *rptFolder)
+		}
+
+		if _, err := os.Stat(rptDirPath); os.IsNotExist(err) {
+			// not exist and should be created
+			err := os.MkdirAll(rptDirPath, 0777)
+			if err != nil {
+				log.Fatalln(err)
+			}
+		}
+
 	}
-	rptPath = *rptFile
 
 	// parse the command line if provided
 	if *commandlineOptions != "" {
@@ -132,9 +146,9 @@ func init() {
 		os.Exit(4)
 	}
 
-	test_pid := 1816
+	test_pid := 2568
 
-	jgc := osdat.NewJsonGraphContainer("SELF", uint32(test_pid))
+	jgc := osdat.NewJsonGraphContainer("SELF", uint32(test_pid), rptDirPath)
 
 	// create new WMIMonitor
 	wev = osdat.NewWMIWmiMonitorProcessEvents(
@@ -197,7 +211,7 @@ Website: https://openintelligence24.com
 
 
 Examples:
-	osdat.exe -f malware1.exe -c /arg1, /arg2, arg2-value -l osdat-malware1.json
+	osdat.exe -f malware1.exe -c /arg1, /arg2, arg2-value -l osdat-malware1
 	osdat.exe -f malware2.exe
 	osdat.exe -f c:\samples\malbatch.exe
 
@@ -212,8 +226,7 @@ OPTIONS:
 		{ARGUMENTS} must be separeted with comma.
 
 
-	-l {REPORT-FILE}	Report file for the analysis of the provided executable
-		It is stored in JSON format and could be analyzed by you or 'osdat-analysis' app.
+	-l {REPORT-FILE}	Report directory for the analysis of the provided executable
 
 
 	-h			Print this help
