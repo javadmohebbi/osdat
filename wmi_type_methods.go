@@ -4,7 +4,6 @@
 package osdat
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -70,17 +69,16 @@ func (e *WmiMonitorProcessEvents) appendMonitoredChiled(ev win32ProcessEvent) (c
 		})
 
 		// // append to graph as it's direct child
-		e.Graph.AppendChild(JsonGraphChild{
-			Name:        ev.Instance.Name,
-			PID:         ev.Instance.ProcessId,
-			TimeStarted: time.Now(),
-			Children:    []*JsonGraphChild{},
-		})
-
-		fmt.Println("-----------------------------")
-		b, _ := json.Marshal(&e.Graph)
-		fmt.Println(string(b))
-		fmt.Println("-----------------------------")
+		jgchild := JsonGraphChild{}
+		jgchild.Name = ev.Instance.Name
+		jgchild.Description = ev.Instance.Description
+		jgchild.ExecutablePath = ev.Instance.ExecutablePath
+		jgchild.CommandLine = ev.Instance.CommandLine
+		jgchild.Priority = ev.Instance.Priority
+		jgchild.PID = ev.Instance.ProcessId
+		jgchild.TimeStarted = time.Now()
+		jgchild.Children = []*JsonGraphChild{}
+		e.Graph.AppendChild(jgchild)
 
 		e.mu.Unlock()
 
@@ -98,19 +96,18 @@ func (e *WmiMonitorProcessEvents) appendMonitoredChiled(ev win32ProcessEvent) (c
 				})
 
 				// // append to graph as it's in-direct child
-				e.Graph.AppendNextChild(JsonGraphChild{
-					Name:        ev.Instance.Name,
-					PID:         ev.Instance.ProcessId,
-					TimeStarted: time.Now(),
-					Children:    []*JsonGraphChild{},
-				},
+				jgchild := JsonGraphChild{}
+				jgchild.Name = ev.Instance.Name
+				jgchild.Description = ev.Instance.Description
+				jgchild.ExecutablePath = ev.Instance.ExecutablePath
+				jgchild.CommandLine = ev.Instance.CommandLine
+				jgchild.Priority = ev.Instance.Priority
+				jgchild.PID = ev.Instance.ProcessId
+				jgchild.TimeStarted = time.Now()
+				jgchild.Children = []*JsonGraphChild{}
+				e.Graph.AppendNextChild(jgchild,
 					ev.Instance.ParentProcessId,
 				)
-
-				fmt.Println("+++++++++++++++++++++++++++++")
-				b, _ := json.Marshal(&e.Graph)
-				fmt.Println(string(b))
-				fmt.Println("+++++++++++++++++++++++++++++")
 
 				e.mu.Unlock()
 				break
@@ -127,9 +124,7 @@ func (e *WmiMonitorProcessEvents) appendMonitoredChiled(ev win32ProcessEvent) (c
 
 // remove items based on their indexes
 func (e *WmiMonitorProcessEvents) _removeMonitoredChildByIndex(s []Monitoredchild, index int) []Monitoredchild {
-
 	return append(s[:index], s[index+1:]...)
-
 }
 
 // remote monitored process from the list
@@ -138,48 +133,29 @@ func (e *WmiMonitorProcessEvents) _removeMonitoredChildByIndex(s []Monitoredchil
 func (e *WmiMonitorProcessEvents) removeMonitoredChiled(ev win32ProcessStopEvent) (check, alldone bool, err error) {
 
 	check = false
-
 	alldone = false
 
 	// if no error
 	for i, mc := range e.monitoredchild {
-
 		if mc.ProcessID == ev.ProcessID {
-
 			check = true
-
 			e.mu.Lock()
-
 			e.monitoredchild = e._removeMonitoredChildByIndex(e.monitoredchild, i)
-
 			e.mu.Unlock()
-
 			if ev.ExitStatus == 0 {
-
 				if len(e.monitoredchild) == 0 {
-
 					alldone = true
-
 					err = nil
-
 					break
-
 				}
-
 			} else {
-
 				err = errors.New(
-
 					fmt.Sprintf("process '%s (%d) has exited with code '%d'",
-
 						ev.ProcessName, ev.ProcessID, ev.ExitStatus,
 					),
 				)
-
 			}
-
 		}
-
 	}
 
 	return check, alldone, err
@@ -189,16 +165,20 @@ func (e *WmiMonitorProcessEvents) removeMonitoredChiled(ev win32ProcessStopEvent
 // stop all wmi query notification instances
 func (e *WmiMonitorProcessEvents) Stop() {
 
+	// stop listening to ProcessCreate events
 	if e.qWmiProcessCreate != nil {
-
 		e.qWmiProcessCreate.Stop()
-
 	}
 
+	// stop listening to ProcessStopTrace events
 	if e.qWmiProcessStopTrace != nil {
-
 		e.qWmiProcessStopTrace.Stop()
-
 	}
+
+	// write updates before ends
+	e.Graph.truncateAndUpdateLog()
+
+	// close json graph
+	e.Graph.Close()
 
 }

@@ -178,6 +178,10 @@ func (e *WmiMonitorProcessEvents) deleteProcessTraceNotify() error {
 		// check if event recieved from WMI
 		case ev := <-s_events:
 			if ev.ProcessID == e.grandParentID {
+
+				// [parent] update exit status code
+				e.Graph.ExitStatusUpdates(ev.ProcessID, ev.ExitStatus)
+
 				e.processExitErr <- errors.New(
 					fmt.Sprintf("The very first parent '%s(%d)' is exited with exit code '%d'",
 						ev.ProcessName, ev.ProcessID, ev.ExitStatus,
@@ -191,6 +195,9 @@ func (e *WmiMonitorProcessEvents) deleteProcessTraceNotify() error {
 			// set to true
 			check, alldone, chErr := e.removeMonitoredChiled(ev)
 
+			// update child exit status code
+			e.Graph.ChildExitStatusUpdates(ev.ProcessID, ev.ExitStatus)
+
 			// if alldone is true, send a sigquit(3) to
 			// e.alldone channel
 			if alldone {
@@ -203,9 +210,12 @@ func (e *WmiMonitorProcessEvents) deleteProcessTraceNotify() error {
 			// it will continiue
 			if len(e.monitoredchild) == 1 {
 				// if a child process stopped with exit code other than
-				// zero, update e.processExitErr with the erro message
+				// zero, update e.processExitErr with the error message
+				// to do the above desc, below IF statement should be uncommented
 				if chErr != nil {
+
 					e.processExitErr <- chErr
+
 				}
 			}
 
